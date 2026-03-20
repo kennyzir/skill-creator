@@ -1,6 +1,6 @@
 # Skill Creator
 
-> Create new AI agent skills from scratch, improve existing skills, and optimize skill descriptions for better triggering accuracy via the Claw0x API. Use when users want to build a skill, write a SKILL.md, write handler code, evaluate skill quality, optimize skill metadata, or generate test cases. Covers the full skill development lifecycle from intent capture through deployment and iteration. Even if the user just says "I have an idea for a skill" or "help me package this as a skill", this is the right tool.
+> Create new AI agent skills from scratch, improve existing skills, and optimize skill descriptions for better triggering accuracy. Use when users want to build a skill, write a SKILL.md, write handler code, evaluate skill quality, optimize skill metadata, or generate test cases. Covers the full skill development lifecycle from intent capture through deployment and iteration. Even if the user just says "I have an idea for a skill" or "help me package this as a skill", this is the right tool.
 
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-blue.svg)](LICENSE)
 [![Claw0x](https://img.shields.io/badge/Powered%20by-Claw0x-orange)](https://claw0x.com)
