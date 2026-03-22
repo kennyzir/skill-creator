@@ -1,6 +1,6 @@
 # Skill Creator
 
-> Create new AI agent skills from scratch, improve existing skills, and optimize skill descriptions for better triggering accuracy. Use when users want to build a skill, write a SKILL.md, write handler code, evaluate skill quality, optimize skill metadata, or generate test cases. Covers the full skill development lifecycle from intent capture through deployment and iteration. Even if the user just says "I have an idea for a skill" or "help me package this as a skill", this is the right tool.
+> Create new AI agent skills from scratch, improve existing skills, and optimize skill descriptions for better triggering accuracy. Use when users want to build a skill, write a SKILL.md, write handler code, evaluate skill quality, optimize skill metadata, or generate test cases. Covers the full skill development lifecycle from intent capture through deployment and iteration. Even if the user just says "I have an idea for a skill" or "help me package this as a skill", this is the right tool. allowed-tools: - Read - Write - Bash(curl *)
 
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-blue.svg)](LICENSE)
 [![Claw0x](https://img.shields.io/badge/Powered%20by-Claw0x-orange)](https://claw0x.com)
@@ -53,38 +53,300 @@ Build production-ready AI agent skills for the Claw0x platform. From a one-sente
 
 > **Free to use.** This skill costs nothing. [Sign up at claw0x.com](https://claw0x.com), create an API key, and start calling. No credit card required.
 
-## How It Works — Under the Hood
+## Quick Reference
 
-This skill provides a structured pipeline for creating, evaluating, and optimizing AI agent skills. It's a pure logic skill — no external API calls, all processing happens locally.
+| When This Happens | Use This Action | What You Get |
+|-------------------|-----------------|--------------|
+| "I have an idea for a skill" | `create` | Complete SKILL.md + handler skeleton |
+| "This skill doc needs work" | `improve` | Refined SKILL.md with before/after scores |
+| "Is this skill ready to deploy?" | `evaluate` | Quality scores across 4 dimensions |
+| "Agents aren't triggering my skill" | `optimize-description` | Rewritten description for better discovery |
+| "I need test cases" | `generate-tests` | Should-trigger and should-not-trigger prompts |
 
-### The Five Actions
+---
 
-1. **create** — Takes a one-sentence intent ("I want a skill that extracts data from PDFs") and generates a complete SKILL.md with proper frontmatter, all required sections, and a handler.ts skeleton. Auto-evaluates the output and suggests improvements.
+## 5-Minute Quickstart
 
-2. **improve** — Takes an existing SKILL.md and optional feedback. Auto-fixes structural issues (missing frontmatter, missing sections, missing env declarations). Returns before/after quality scores.
+### Step 1: Get API Key (30 seconds)
+Sign up at [claw0x.com](https://claw0x.com) → Dashboard → Create API Key
 
-3. **evaluate** — Scores a SKILL.md across four dimensions: completeness (required sections), clarity (code examples, tables), triggering quality (description analysis), and structure (frontmatter, env vars). Returns 0-1 scores plus actionable suggestions.
+### Step 2: Create Your First Skill (2 minutes)
+```bash
+curl -X POST https://api.claw0x.com/v1/call \
+  -H "Authorization: Bearer ck_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "skill": "skill-creator",
+    "input": {
+      "action": "create",
+      "intent": "I want a skill that validates email addresses"
+    }
+  }'
+```
 
-4. **optimize-description** — Analyzes the frontmatter `description` field and rewrites it for better agent triggering. Checks word count, "Use when" phrasing, action verbs, and edge-case coverage.
+### Step 3: Get Complete SKILL.md + Handler (instant)
+```json
+{
+  "skill_md": "---\nname: email-validator\ndescription: Validate email addresses...",
+  "handler_skeleton": "import { VercelRequest, VercelResponse }...",
+  "evaluation": {
+    "completeness": 0.85,
+    "clarity": 0.9
+  }
+}
+```
 
-5. **generate-tests** — Creates realistic test prompts in two categories: should-trigger and should-not-trigger. Use these to validate that agents invoke the skill correctly.
+### Step 4: Deploy and Test
+Copy the generated files, deploy to Vercel, and you're live!
 
-### Why Description Quality Matters
+**Done.** You just created a production-ready skill in 5 minutes.
 
-Agents match skills by scanning descriptions against user intent. A conservative description ("validates email format") only triggers on exact matches. A pushy description ("Use when users mention email validation, address checking, deliverability, bounce prevention, or inbox verification") catches the long tail of how users actually phrase requests. This skill's `optimize-description` action applies that principle systematically.
+## How Claw0x Skills Work — Architecture in 60 Seconds
 
-### Evaluation Criteria
+Every skill on Claw0x follows the same pattern:
 
-The `evaluate` action checks:
+```
+Agent → POST https://api.claw0x.com/v1/call → Gateway → skill backend → Response
+```
 
-- **Completeness** — Are all required sections present? (Prerequisites, When to Use, API Call, Input, Output)
-- **Clarity** — Does it have code examples? Tables? Real output samples?
-- **Triggering quality** — Is the description 20-40 words? Does it use "Use when..." phrasing? Action verbs?
-- **Structure** — Valid YAML frontmatter? CLAW0X_API_KEY declared? Proper section ordering?
+1. An AI agent (or human) calls the Gateway with a Claw0x API key
+2. The Gateway authenticates, routes to the skill backend, and handles billing
+3. The skill backend runs the handler and returns a result
+4. Only 2xx responses are billed. 4xx/5xx = free. Zero risk for the caller.
+
+The caller never needs upstream API keys. One key, one endpoint, zero config.
+
+## Skill Directory Structure
+
+Every skill lives in a standard directory:
+
+```
+skills/{slug}/
+├── SKILL.md       # Agent discovery entry point (required)
+└── handler.ts     # Serverless function logic (required)
+```
+
+- `SKILL.md` is what agents read to decide whether to invoke the skill
+- `handler.ts` is the actual execution logic, deployed as a Vercel serverless function
+
+## Two Types of Skills
+
+### API Wrapper Skills
+Wrap an external API behind the Claw0x Gateway. The handler calls the upstream API using a server-side key that the caller never sees.
+**Pure Logic Skills** have no external API calls. All processing happens inside the handler. Cheaper (50% discount) and get free-tier allocation. Example: `sentiment` does regex + heuristic analysis locally. `skill-creator` (this skill) is also pure logic.
+
+## Stage 1: Capture Intent Gemini for AI text rewriting.
+
+### Pure Logic Skills
+No external API calls. All processing happens inside the handler. These are cheaper (50% discount) and get free-tier allocation.
+
+Example: `sentiment` does regex + heuristic analysis locally. `skill-creator` (this skill) is also pure logic.
+
+## Stage 1: Capture Intent
+
+Before writing any code, answer these six questions. They determine everything downstream.
+
+1. **What does this skill do in one sentence?**
+   A concrete action. "Extracts structured data from PDF invoices and returns JSON" — not "AI-powered document intelligence."
+
+2. **When should an agent invoke this skill?**
+   List 3-5 specific trigger phrases. These become the foundation of your `description` field.
+
+3. **What inputs does it need?**
+   Every field: name, type, required/optional, constraints.
+
+4. **What does the output look like?**
+   The exact JSON shape including `_meta` with `skill`, `version`, and `latency_ms`.
+
+5. **Does it need an upstream API?**
+   Yes → API Wrapper. No → Pure Logic (cheaper, simpler).
+
+6. **What can go wrong?**
+   List failure modes. Each needs a specific error code and message.
+
+### Why This Matters
+
+A skill with a vague intent produces a vague description, which produces poor triggering, which means agents never invoke it. The six questions force precision upfront.
+
+## Stage 2: Write the SKILL.md
+
+The SKILL.md is the single most important file. It's what agents read to decide whether to use your skill.
+
+### Frontmatter Rules
+
+```yaml
+---
+name: your-skill-slug
+description: >
+  [Action verb] [what it does]. Use when [trigger phrase 1],
+  [trigger phrase 2], or [trigger phrase 3]. [What it handles/returns].
+  Even if the user [edge case phrasing], this skill applies.
+allowed-tools: Bash(curl *)
+metadata:
+  requires:
+    env:
+      - CLAW0X_API_KEY
+  version: "1.0.0"
+---
+```
+
+**Description field rules (critical for triggering):**
+
+- Start with an action verb: "Extract", "Rewrite", "Analyze", "Generate", "Validate"
+- Focus on what the skill does, not implementation details
+- Add "Use when..." followed by 3-5 natural-language trigger phrases
+- End with an edge-case catch: "Even if the user just says X, this skill applies"
+- Target 30-50 words. Under 20 = agents miss it. Over 60 = agents get confused.
+- Be pushy — actively claim territory. "Use when users mention anything related to email validation, address checking, or deliverability" beats "Validates email addresses."
+
+**Why pushy descriptions work:** Agents match skills by scanning descriptions against user intent. A conservative description only triggers on exact matches. A pushy description catches the long tail of how users actually phrase requests.
+
+### Required Sections
+
+Every SKILL.md must include these sections in order:
+
+1. **Title + one-line summary**
+2. **How It Works — Under the Hood** — explain the actual mechanism. If it's an LLM wrapper, say so. Transparency builds trust.
+3. **Prerequisites** — always `CLAW0X_API_KEY`. If free, say "No credit card required."
+4. **When to Use** — 4-6 concrete scenarios using trigger phrases from Stage 1.
+5. **API Call** — complete, copy-pasteable `curl` using `https://api.claw0x.com/v1/call`. Never internal routes.
+6. **Input** — table with Field, Type, Required, Description columns.
+7. **Output** — exact JSON response shape with realistic values, not placeholders.
+- Use tables for structured data
+
+## Stage 3: Write the handler.ts the skill can return (400, 401, 500).
+10. **Pricing** — per-call price or "Free" explicitly.
+
+### Writing Style
+
+- **Explain the why, not just the what.** Don't just say "Uses regex fallback." Say why: "because LLM APIs can timeout, and a deterministic path ensures the caller always gets a result."
+- **Show real examples.** Never use placeholder data like `"result": "..."`. Show actual input and output.
+- **Be specific about limitations.** If it can't handle files over 10MB, say so.
+- **Keep it under 500 lines.** If you need more, the skill is doing too much — split it.
+- **Use tables for structured data.** Input/output fields, error codes, event types.
+
+## Stage 3: Write the handler.ts
+
+The handler is a Vercel serverless function. Every handler follows the same skeleton.
+
+### The Standard Pattern
+
+```typescript
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { authMiddleware } from '../../lib/auth';
+import { validateInput } from '../../lib/validation';
+import { successResponse, errorResponse } from '../../lib/response';
+
+async function handler(req: VercelRequest, res: VercelResponse) {
+  const validation = validateInput(req.body, {
+    input: { type: 'object', required: true },
+  });
+  if (!validation.valid) {
+    return errorResponse(res, 'Invalid input', 400, validation.errors);
+  }
+
+  const { input } = validation.data!;
+  const startTime = Date.now();
+
+  try {
+    const result = doSomething(input);
+    return successResponse(res, {
+      ...result,
+      _meta: { skill: 'your-slug', latency_ms: Date.now() - startTime, version: '1.0.0' },
+    });
+  } catch (error: any) {
+    return errorResponse(res, 'Processing failed', 500, error.message);
+  }
+}
+
+export default authMiddleware(handler);
+```
+
+### Key Rules
+
+- **Always use `authMiddleware`** — validates the Claw0x API key.
+- **Always return `_meta`** — the Gateway uses it for billing and analytics.
+- **Import from `../../lib/`** — shared libraries live two directories up.
+- **Use `successResponse` / `errorResponse`** — consistent formatting and status codes.
+- **Handle errors explicitly** — 400 for bad input, 500 for internal failures.
+
+### API Wrapper: add upstream API call
+
+```typescript
+const API_KEY = process.env.UPSTREAM_API_KEY;
+if (!API_KEY) return errorResponse(res, 'Upstream API key not configured', 500);
+
+const upstream = await fetch('https://api.example.com/endpoint', {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${API_KEY}` },
+  body: JSON.stringify({ prompt: input.text }),
+});
+if (!upstream.ok) return errorResponse(res, 'Upstream API failed', 502);
+```
+
+The caller never sees `UPSTREAM_API_KEY`. That's the whole point of the Gateway model.
+
+## Stage 4: Register and Deploy
+
+### Step 1: Seed Script
+
+Create `app/seed-{slug}.mjs` to insert the skill into the database. Must fill all required fields including `delivery_mode: 'both'`, `endpoint_url`, `role`, `status: 'approved'`.
+
+### Step 2: Run Seed + Security Scan (mandatory)
+
+```powershell
+node seed-your-slug.mjs
+node scan-skill-security.mjs your-slug
+```
+
+Security scan is a hard prerequisite. No skill goes live without it.
+
+### Step 3: Deploy
+
+Push the skills repo to trigger Vercel auto-deploy.
+
+### Step 4: Verify
+
+```bash
+- Auditing a skill against Claw0x platform standards
+
+## API CallT https://api.claw0x.com/v1/call \
+  -H "Authorization: Bearer $CLAW0X_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"skill": "your-slug", "input": {"action": "..."}}'
+```
+
+Should return 200 with valid JSON including `_meta`.
+
+## Stage 5: Test and Iterate
+
+### Triggering Quality Test
+
+1. Write 5 prompts that SHOULD trigger the skill
+2. Write 5 prompts that SHOULD NOT trigger the skill
+3. Use the `generate-tests` action to get a starting set
+4. If triggering accuracy < 80%, rewrite the `description` field using `optimize-description`
+
+### Quality Checklist
+
+- [ ] SKILL.md has all required sections
+- [ ] Description is 30-50 words with "Use when..." phrasing
+- [ ] API call uses `https://api.claw0x.com/v1/call`
+- [ ] Input table documents every field
+- [ ] Output shows real JSON, not placeholders
+- [ ] handler.ts uses `authMiddleware` and returns `_meta`
+- [ ] Security scan passed
+- [ ] Gateway test returns 200
+
+---
 
 ## Prerequisites
 
-A valid Claw0x API key (`CLAW0X_API_KEY`). Sign up at [claw0x.com](https://claw0x.com) and create a key in your dashboard. Store it securely in environment variables or a secret manager — never hardcode it in source files.
+A valid Claw0x API key (`CLAW0X_API_KEY`). Sign up at [claw0x.com](https://claw0x.com) and create a key in your dashboard.
+
+```bash
+export CLAW0X_API_KEY="your-api-key-here"
+```
 
 No credit card or wallet balance needed — this skill is free.
 
@@ -95,7 +357,7 @@ No credit card or wallet balance needed — this skill is free.
 - Evaluating skill quality before deployment
 - Optimizing a skill's description for better agent triggering
 - Generating test prompts to validate skill behavior
-- Auditing a skill against platform standards
+- Auditing a skill against Claw0x platform standards
 
 ## API Call
 
@@ -128,6 +390,28 @@ curl -s -X POST https://api.claw0x.com/v1/call \
 | `context` | object | No | Additional context: `target_tools` (string[]), `complexity` (low/medium/high), `domain` (string) |
 | `feedback` | string | No (improve) | Specific feedback on what to change |
 | `num_tests` | number | No (generate-tests) | Number of test cases per category (default: 3) |
+
+## Actions
+
+### `create` — Generate a new skill from intent
+
+Takes a one-sentence intent and produces a complete SKILL.md draft with proper frontmatter, all required sections, and a handler.ts skeleton. Also runs an auto-evaluation and returns improvement suggestions.
+
+### `improve` — Refine an existing skill
+
+Takes existing SKILL.md content and optional feedback. Auto-fixes structural issues (missing frontmatter, missing sections, missing CLAW0X_API_KEY declaration). Returns before/after quality scores and a list of changes made.
+
+### `evaluate` — Score skill quality
+
+Analyzes a SKILL.md across four dimensions: completeness (required sections present), clarity (code examples, tables), triggering quality (description field analysis), and structure (frontmatter, env vars). Returns scores 0-1 per dimension plus actionable issues and suggestions.
+
+### `optimize-description` — Improve triggering accuracy
+
+Analyzes the frontmatter `description` field and rewrites it for better agent triggering. Checks word count, "Use when" phrasing, action verbs, and edge-case coverage. Returns the original and optimized descriptions with specific tips.
+
+### `generate-tests` — Create test prompts
+
+Generates realistic test prompts in two categories: should-trigger (direct mentions, synonyms, complex queries) and should-not-trigger (unrelated domains, similar-but-wrong tasks). Use these to validate that agents invoke the skill correctly.
 
 ## Output
 
@@ -177,29 +461,7 @@ curl -s -X POST https://api.claw0x.com/v1/call \
 }
 ```
 
-### `optimize-description` response
-
-```json
-{
-  "action": "optimize-description",
-  "skill_name": "email-validator",
-  "original_description": "Validates email addresses",
-  "optimized_description": "Validates email addresses via the Claw0x API. Use when users mention email validation, address checking, deliverability, bounce prevention, or inbox verification. Even if the user just says 'check this email', this skill applies.",
-  "analysis": {
-    "word_count": 5,
-    "has_use_when": false,
-    "has_action_verbs": true,
-    "optimal_range": "20-40 words"
-  },
-  "tips": [
-    "Description too short. Expanded with trigger phrases.",
-    "Added \"Use when\" phrasing for better triggering."
-  ],
-  "_meta": { "skill": "skill-creator", "version": "1.0.0", "latency_ms": 8 }
-}
-```
-
-## Example — Full Create Workflow
+## Example — Create Action
 
 **Request:**
 ```json
@@ -208,21 +470,12 @@ curl -s -X POST https://api.claw0x.com/v1/call \
   "input": {
     "action": "create",
     "intent": "I want a skill that validates email addresses and checks deliverability",
-    "context": {
-      "target_tools": ["Bash"],
-      "complexity": "low"
-    }
+    "context": { "target_tools": ["Bash"], "complexity": "low" }
   }
 }
 ```
 
-**Response includes:**
-- A complete SKILL.md with frontmatter, all required sections, and a pushy description
-- A handler.ts skeleton with auth middleware, input validation, and error handling
-- Quality scores (completeness, clarity, triggering)
-- Specific suggestions for improvement
-
-Then use `evaluate` to score it, `optimize-description` to improve triggering, and `generate-tests` to create validation prompts.
+**Response includes:** a complete SKILL.md with pushy description, all required sections, a handler.ts skeleton, quality scores, and improvement suggestions. Then use `evaluate` to score it, `optimize-description` to improve triggering, and `generate-tests` to create validation prompts.
 
 ## Error Codes
 
@@ -235,6 +488,187 @@ Then use `evaluate` to score it, `optimize-description` to improve triggering, a
 ## Pricing
 
 **Free.** This is a pure logic skill with no upstream API costs. Only your Claw0x API key is needed.
+
+```yaml
+---
+name: your-skill-slug
+description: >
+  [Action verb] [what it does]. Use when [trigger phrase 1],
+  [trigger phrase 2], or [trigger phrase 3]. [What it handles/returns].
+  Even if the user [edge case phrasing], this skill applies.
+allowed-tools: Bash(curl *)
+metadata:
+  requires:
+    env:
+      - CLAW0X_API_KEY
+  version: "1.0.0"
+---
+```
+
+**Description field rules (critical for triggering):**
+
+- Start with an action verb: "Extract", "Rewrite", "Analyze", "Generate", "Validate"
+- Focus on what the skill does, not implementation details
+- Add "Use when..." followed by 3-5 natural-language trigger phrases
+- End with an edge-case catch: "Even if the user just says X, this skill applies"
+- Target 30-50 words. Under 20 = agents miss it. Over 60 = agents get confused.
+- Be pushy — actively claim territory. "Use when users mention anything related to email validation, address checking, or deliverability" beats "Validates email addresses."
+
+**Why pushy descriptions work:** Agents match skills by scanning descriptions against user intent. A conservative description only triggers on exact matches. A pushy description catches the long tail of how users actually phrase requests.
+
+### Required Sections
+
+Every SKILL.md must include these sections in order:
+
+1. **Title + one-line summary**
+2. **How It Works — Under the Hood** — explain the actual mechanism. If it's an LLM wrapper, say so. Transparency builds trust.
+3. **Prerequisites** — always `CLAW0X_API_KEY`. If free, say "No credit card required."
+4. **When to Use** — 4-6 concrete scenarios using trigger phrases from Stage 1.
+5. **API Call** — complete, copy-pasteable `curl` using `https://api.claw0x.com/v1/call`. Never internal routes.
+6. **Input** — table with Field, Type, Required, Description columns.
+7. **Output** — exact JSON response shape with realistic values, not placeholders.
+8. **Example** — at least one complete input→output pair with real data.
+9. **Error Codes** — every error the skill can return (400, 401, 500).
+10. **Pricing** — per-call price or "Free" explicitly.
+
+### Writing Style
+
+- **Explain the why, not just the what.** Don't just say "Uses regex fallback." Say why: "because LLM APIs can timeout, and a deterministic path ensures the caller always gets a result."
+- **Show real examples.** Never use placeholder data like `"result": "..."`. Show actual input and output.
+- **Be specific about limitations.** If it can't handle files over 10MB, say so.
+- **Keep it under 500 lines.** If you need more, the skill is doing too much — split it.
+- **Use tables for structured data.** Input/output fields, error codes, event types.
+
+## Stage 3: Write the handler.ts
+
+The handler is a Vercel serverless function. Every handler follows the same skeleton.
+
+### The Standard Pattern
+
+```typescript
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { authMiddleware } from '../../lib/auth';
+import { validateInput } from '../../lib/validation';
+import { successResponse, errorResponse } from '../../lib/response';
+
+async function handler(req: VercelRequest, res: VercelResponse) {
+  const validation = validateInput(req.body, {
+    input: { type: 'object', required: true },
+  });
+  if (!validation.valid) {
+    return errorResponse(res, 'Invalid input', 400, validation.errors);
+  }
+
+  const { input } = validation.data!;
+  const startTime = Date.now();
+
+  try {
+    const result = doSomething(input);
+    return successResponse(res, {
+      ...result,
+      _meta: { skill: 'your-slug', latency_ms: Date.now() - startTime, version: '1.0.0' },
+    });
+  } catch (error: any) {
+    return errorResponse(res, 'Processing failed', 500, error.message);
+  }
+}
+
+export default authMiddleware(handler);
+```
+
+### Key Rules
+
+- **Always use `authMiddleware`** — validates the Claw0x API key.
+- **Always return `_meta`** — the Gateway uses it for billing and analytics.
+- **Import from `../../lib/`** — shared libraries live two directories up.
+- **Use `successResponse` / `errorResponse`** — consistent formatting and status codes.
+- **Handle errors explicitly** — 400 for bad input, 500 for internal failures.
+
+### API Wrapper: add upstream API call
+
+```typescript
+const API_KEY = process.env.UPSTREAM_API_KEY;
+if (!API_KEY) return errorResponse(res, 'Upstream API key not configured', 500);
+
+const upstream = await fetch('https://api.example.com/endpoint', {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${API_KEY}` },
+  body: JSON.stringify({ prompt: input.text }),
+});
+if (!upstream.ok) return errorResponse(res, 'Upstream API failed', 502);
+```
+
+The caller never sees `UPSTREAM_API_KEY`. That's the whole point of the Gateway model.
+
+## Stage 4: Register and Deploy
+
+### Step 1: Seed Script
+
+Create `app/seed-{slug}.mjs` to insert the skill into the database. Must fill all required fields including `delivery_mode: 'both'`, `endpoint_url`, `role`, `status: 'approved'`.
+
+### Step 2: Run Seed + Security Scan (mandatory)
+
+```powershell
+node seed-your-slug.mjs
+node scan-skill-security.mjs your-slug
+```
+
+Security scan is a hard prerequisite. No skill goes live without it.
+
+### Step 3: Deploy
+
+Push the skills repo to trigger Vercel auto-deploy.
+
+### Step 4: Verify
+
+```bash
+# Gateway test (production path)
+curl -X POST https://api.claw0x.com/v1/call \
+  -H "Authorization: Bearer $CLAW0X_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"skill": "your-slug", "input": {"action": "..."}}'
+```
+
+Should return 200 with valid JSON including `_meta`.
+
+## Stage 5: Test and Iterate
+
+### Triggering Quality Test
+
+1. Write 5 prompts that SHOULD trigger the skill
+2. Write 5 prompts that SHOULD NOT trigger the skill
+3. Use the `generate-tests` action to get a starting set
+4. If triggering accuracy < 80%, rewrite the `description` field using `optimize-description`
+
+### Quality Checklist
+
+- [ ] SKILL.md has all required sections
+- [ ] Description is 30-50 words with "Use when..." phrasing
+- [ ] API call uses `https://api.claw0x.com/v1/call`
+- [ ] Input table documents every field
+- [ ] Output shows real JSON, not placeholders
+- [ ] handler.ts uses `authMiddleware` and returns `_meta`
+- [ ] Security scan passed
+- [ ] Gateway test returns 200
+
+## Prerequisites
+
+A valid Claw0x API key (`CLAW0X_API_KEY`). Sign up at [claw0x.com](https://claw0x.com) and create a key in your dashboard.
+
+```bash
+export CLAW0X_API_KEY="your-api-key-here"
+```
+
+No credit card or wallet balance needed — this skill is free.
+
+## When to Use
+
+- Creating a new skill from scratch (SKILL.md + handler.ts)
+- Improving or editing an existing skill's documentation
+- Evaluating skill quality before deployment
+- Optimizing a skill's description for better agent triggering
+- Generating test prompts to validate skill behavior
+- Auditing a skill against Claw0x platform standards
 
 
 ---
